@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Final Fantasy Lattice — Single File MMO</title>
+
+<style>
+body {
+  margin:0;
+  font-family: Arial, sans-serif;
+  background: radial-gradient(circle at top, #070a14, #02030a);
+  color:#e6e6e6;
+}
+
+header {
+  padding:14px;
+  text-align:center;
+  background:#0f1a33;
+  border-bottom:1px solid #223;
+  position:sticky;
+  top:0;
+}
+
+nav a {
+  color:#7cc4ff;
+  margin:0 8px;
+  text-decoration:none;
+  font-size:14px;
+}
+
+.container {
+  padding:12px;
+  max-width:900px;
+  margin:auto;
+}
+
+.card {
+  background:#121a2e;
+  border:1px solid #1f2b45;
+  padding:12px;
+  margin:10px 0;
+  border-radius:12px;
+}
+
+input, textarea, button {
+  width:100%;
+  margin:6px 0;
+  padding:10px;
+  border-radius:8px;
+  border:none;
+  font-size:14px;
+}
+
+button {
+  background:#2b6cff;
+  color:white;
+  cursor:pointer;
+}
+
+canvas {
+  width:100%;
+  border:1px solid #223;
+  border-radius:10px;
+  background:#050816;
+}
+
+.small {
+  font-size:12px;
+  opacity:0.8;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<h2>Final Fantasy Lattice</h2>
+<nav>
+<a href="#hub">Hub</a>
+<a href="#world">World</a>
+<a href="#archive">Archive</a>
+</nav>
+</header>
+
+<div class="container">
+
+<!-- ---------------- HUB ---------------- -->
+<section id="hub" class="card">
+<h3>🧠 Persistent Character Core</h3>
+
+<input id="name" placeholder="Character Name">
+<button onclick="saveChar()">Save / Create Character</button>
+<button onclick="loadChar()">Load Character</button>
+
+<div id="char"></div>
+</section>
+
+<!-- ---------------- WORLD ---------------- -->
+<section id="world" class="card">
+<h3>🧬 Infinite Procedural Lattice World</h3>
+<p class="small">
+Arrow keys / swipe to move. Infinite deterministic node field.
+</p>
+
+<canvas id="c" width="360" height="220"></canvas>
+</section>
+
+<!-- ---------------- ARCHIVE ---------------- -->
+<section id="archive" class="card">
+<h3>📡 Lattice Archive (Local Web3-style memory)</h3>
+
+<input id="t" placeholder="Node title">
+<textarea id="d" placeholder="Node content"></textarea>
+<button onclick="post()">Submit Node</button>
+
+<div id="list"></div>
+</section>
+
+</div>
+
+<script>
+
+////////////////////////////////////////////////////
+// 🧠 CHARACTER SYSTEM (Persistent Save)
+////////////////////////////////////////////////////
+
+function saveChar(){
+  const c = {
+    name: document.getElementById("name").value || "Walker_" + Math.floor(Math.random()*999),
+    level: 1,
+    strain: Math.floor(Math.random()*10),
+    essence: Math.floor(Math.random()*100)
+  };
+  localStorage.setItem("ff_char", JSON.stringify(c));
+  renderChar(c);
+}
+
+function loadChar(){
+  const c = JSON.parse(localStorage.getItem("ff_char"));
+  if(c) renderChar(c);
+}
+
+function renderChar(c){
+  document.getElementById("char").innerHTML =
+  `<div class="card">
+    <b>${c.name}</b><br>
+    Level: ${c.level}<br>
+    Strain: ${c.strain}<br>
+    Essence: ${c.essence}
+  </div>`;
+}
+
+////////////////////////////////////////////////////
+// 📡 ARCHIVE SYSTEM (Local “Web3-style” storage)
+////////////////////////////////////////////////////
+
+function post(){
+  const title = document.getElementById("t").value;
+  const content = document.getElementById("d").value;
+
+  let data = JSON.parse(localStorage.getItem("ff_nodes") || "[]");
+  data.push({title, content});
+  localStorage.setItem("ff_nodes", JSON.stringify(data));
+
+  renderArchive();
+}
+
+function renderArchive(){
+  let data = JSON.parse(localStorage.getItem("ff_nodes") || "[]");
+
+  let out = "";
+  data.slice(-30).reverse().forEach(n=>{
+    out += `
+      <div class="card">
+        <b>${n.title}</b><br>
+        ${n.content}
+      </div>
+    `;
+  });
+
+  document.getElementById("list").innerHTML = out;
+}
+
+////////////////////////////////////////////////////
+// 🧬 PROCEDURAL LATTICE WORLD ENGINE
+////////////////////////////////////////////////////
+
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+let player = {x:0, y:0};
+let seed = 1337;
+
+// deterministic hash → “infinite world generation”
+function hash(x,y){
+  let n = x*374761393 + y*668265263 + seed;
+  n = (n ^ (n >> 13)) * 1274126177;
+  return ((n ^ (n >> 16)) >>> 0) / 4294967295;
+}
+
+// movement (iOS + keyboard compatible)
+document.addEventListener("keydown", e=>{
