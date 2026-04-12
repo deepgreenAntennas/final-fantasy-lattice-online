@@ -201,3 +201,122 @@ function hash(x,y){
 
 // movement (iOS + keyboard compatible)
 document.addEventListener("keydown", e=>{
+  <script>
+(() => {
+  // -----------------------------
+  // STATE (LOCAL STORAGE ENGINE)
+  // -----------------------------
+  let character = JSON.parse(localStorage.getItem("ffl_character") || "null");
+  let archive = JSON.parse(localStorage.getItem("lattice_archive") || "[]");
+
+  // -----------------------------
+  // HELPERS
+  // -----------------------------
+  const $ = (sel) => document.querySelector(sel);
+
+  function saveCharacter() {
+    const input = document.querySelector("input");
+    if (!input) return;
+
+    character = { name: input.value || "Nameless" };
+    localStorage.setItem("ffl_character", JSON.stringify(character));
+
+    alert("Character saved: " + character.name);
+  }
+
+  function loadCharacter() {
+    const data = localStorage.getItem("ffl_character");
+    if (!data) return alert("No character found");
+
+    character = JSON.parse(data);
+
+    const input = document.querySelector("input");
+    if (input) input.value = character.name;
+
+    alert("Loaded: " + character.name);
+  }
+
+  // -----------------------------
+  // ARCHIVE SYSTEM
+  // -----------------------------
+  function submitNode() {
+    const inputs = document.querySelectorAll("input, textarea");
+    const title = inputs[1]?.value || "Untitled Node";
+    const content = inputs[2]?.value || "";
+
+    if (!title.trim() || !content.trim()) {
+      alert("Node incomplete");
+      return;
+    }
+
+    const node = {
+      title,
+      content,
+      time: new Date().toISOString()
+    };
+
+    archive.push(node);
+    localStorage.setItem("lattice_archive", JSON.stringify(archive));
+
+    renderArchive();
+
+    alert("Node submitted: " + title);
+
+    inputs[1].value = "";
+    inputs[2].value = "";
+  }
+
+  function renderArchive() {
+    let container = document.getElementById("archive-list");
+
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "archive-list";
+      container.style.marginTop = "12px";
+      container.style.fontSize = "14px";
+      container.style.color = "#cbd5e1";
+
+      const archiveSection = document.querySelector("textarea")?.parentElement;
+      if (archiveSection) archiveSection.appendChild(container);
+    }
+
+    container.innerHTML = archive
+      .slice(-10)
+      .reverse()
+      .map(n => `
+        <div style="padding:8px;margin:6px 0;background:#1e293b;border-radius:8px">
+          <b>${n.title}</b><br/>
+          <small>${n.time}</small><br/>
+          <div>${n.content}</div>
+        </div>
+      `)
+      .join("");
+  }
+
+  // -----------------------------
+  // EVENT WIRING (FIX MAIN ISSUE)
+  // -----------------------------
+  function wire() {
+    const buttons = document.querySelectorAll("button");
+
+    if (buttons[0]) buttons[0].onclick = saveCharacter;
+    if (buttons[1]) buttons[1].onclick = loadCharacter;
+    if (buttons[2]) buttons[2].onclick = submitNode;
+  }
+
+  // -----------------------------
+  // INIT
+  // -----------------------------
+  function init() {
+    wire();
+    renderArchive();
+
+    if (character?.name) {
+      const input = document.querySelector("input");
+      if (input) input.value = character.name;
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+})();
+</script>
