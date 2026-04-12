@@ -492,3 +492,175 @@ document.addEventListener("keydown", e=>{
   document.addEventListener("DOMContentLoaded", init);
 })();
 </script>
+  <script>
+(() => {
+  // =========================
+  // LATTICE ENGINE v2 CORE
+  // =========================
+
+  const state = {
+    character: JSON.parse(localStorage.getItem("ffl_character") || "null"),
+    archive: JSON.parse(localStorage.getItem("lattice_archive") || "[]"),
+    x: 0,
+    y: 0
+  };
+
+  // -------------------------
+  // DETERMINSITIC WORLD SEED
+  // -------------------------
+  function node(x, y) {
+    const seed = (x * 374761393 + y * 668265263) ^ (x * y);
+    return Math.abs(Math.sin(seed) * 10000) % 1;
+  }
+
+  // -------------------------
+  // SAVE SYSTEM
+  // -------------------------
+  function saveCharacter() {
+    const input = document.querySelector("input");
+    if (!input) return;
+
+    state.character = { name: input.value || "Nameless" };
+    localStorage.setItem("ffl_character", JSON.stringify(state.character));
+
+    flash("Saved: " + state.character.name);
+  }
+
+  function loadCharacter() {
+    const data = localStorage.getItem("ffl_character");
+    if (!data) return flash("No character");
+
+    state.character = JSON.parse(data);
+
+    const input = document.querySelector("input");
+    if (input) input.value = state.character.name;
+
+    flash("Loaded: " + state.character.name);
+  }
+
+  // -------------------------
+  // ARCHIVE SYSTEM
+  // -------------------------
+  function submitNode() {
+    const inputs = document.querySelectorAll("input, textarea");
+
+    const title = inputs[1]?.value?.trim();
+    const content = inputs[2]?.value?.trim();
+
+    if (!title || !content) return flash("Incomplete node");
+
+    const entry = {
+      title,
+      content,
+      time: Date.now(),
+      x: state.x,
+      y: state.y
+    };
+
+    state.archive.push(entry);
+    localStorage.setItem("lattice_archive", JSON.stringify(state.archive));
+
+    inputs[1].value = "";
+    inputs[2].value = "";
+
+    renderArchive();
+    flash("Node added: " + title);
+  }
+
+  function renderArchive() {
+    let box = document.getElementById("archive-list");
+
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "archive-list";
+      box.style.marginTop = "12px";
+      box.style.color = "#cbd5e1";
+
+      const anchor = document.querySelector("textarea")?.parentElement;
+      if (anchor) anchor.appendChild(box);
+    }
+
+    box.innerHTML = state.archive.slice(-8).reverse().map(n => `
+      <div style="margin:6px 0;padding:8px;background:#111827;border-radius:8px">
+        <b>${n.title}</b><br/>
+        <small>(${n.x}, ${n.y})</small><br/>
+        <div>${n.content}</div>
+      </div>
+    `).join("");
+  }
+
+  // -------------------------
+  // WORLD MOVEMENT (FIXES EMPTY MAP FEEL)
+  // -------------------------
+  function move(dx, dy) {
+    state.x += dx;
+    state.y += dy;
+    flash(`Node: ${state.x}, ${state.y}`);
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp") move(0, -1);
+    if (e.key === "ArrowDown") move(0, 1);
+    if (e.key === "ArrowLeft") move(-1, 0);
+    if (e.key === "ArrowRight") move(1, 0);
+  });
+
+  // -------------------------
+  // BUTTON WIRING (CRITICAL FIX)
+  // -------------------------
+  function wire() {
+    const buttons = document.querySelectorAll("button");
+
+    if (buttons[0]) buttons[0].onclick = saveCharacter;
+    if (buttons[1]) buttons[1].onclick = loadCharacter;
+    if (buttons[2]) buttons[2].onclick = submitNode;
+  }
+
+  // -------------------------
+  // UI FEEDBACK SYSTEM
+  // -------------------------
+  function flash(msg) {
+    let el = document.getElementById("lattice-flash");
+
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "lattice-flash";
+      el.style.position = "fixed";
+      el.style.bottom = "20px";
+      el.style.left = "50%";
+      el.style.transform = "translateX(-50%)";
+      el.style.background = "#0f172a";
+      el.style.color = "#fff";
+      el.style.padding = "10px 14px";
+      el.style.borderRadius = "10px";
+      el.style.fontSize = "13px";
+      el.style.zIndex = 9999;
+      document.body.appendChild(el);
+    }
+
+    el.textContent = msg;
+    el.style.opacity = "1";
+
+    setTimeout(() => {
+      el.style.opacity = "0";
+    }, 1200);
+  }
+
+  // -------------------------
+  // INIT ENGINE
+  // -------------------------
+  function init() {
+    wire();
+    renderArchive();
+
+    const input = document.querySelector("input");
+    if (input && state.character?.name) {
+      input.value = state.character.name;
+    }
+
+    flash("Lattice Engine v2 Online");
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+})();
+</script>
