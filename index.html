@@ -208,3 +208,45 @@ renderArchive();
 
 </body>
 </html>
+<script>
+function saveAndGo() {
+  const name = document.querySelector("#charName")?.value || "Altima";
+  localStorage.setItem("char", JSON.stringify({ name }));
+
+  // go to world
+  window.location.href = "world.html";
+}
+
+function loadAndGo() {
+  const data = localStorage.getItem("char");
+  if (!data) {
+    alert("No character saved");
+    return;
+  }
+
+  window.location.href = "world.html";
+}
+
+function submitAndGo() {
+  const title = document.querySelector("#nodeTitle")?.value;
+  const content = document.querySelector("#nodeContent")?.value;
+
+  if (!title || !content) {
+    alert("Missing node");
+    return;
+  }
+
+  const archive = JSON.parse(localStorage.getItem("archive") || "[]");
+
+  archive.push({
+    title,
+    content,
+    time: Date.now()
+  });
+
+  localStorage.setItem("archive", JSON.stringify(archive));
+
+  // go to archive page
+  window.location.href = "archive.html";
+}
+</script>
