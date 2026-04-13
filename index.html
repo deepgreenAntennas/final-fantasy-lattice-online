@@ -8,7 +8,7 @@
 <style>
 body {
   margin:0;
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:-apple-system, sans-serif;
   background:#020617;
   color:#e2e8f0;
 }
@@ -17,8 +17,11 @@ body {
   padding:16px;
 }
 
-h1 {
-  font-size:20px;
+canvas {
+  width:100%;
+  height:300px;
+  display:block;
+  border-radius:12px;
 }
 
 input, textarea, button {
@@ -30,21 +33,9 @@ input, textarea, button {
 }
 
 button {
-  background:#6366f1;
+  background:linear-gradient(90deg,#6366f1,#8b5cf6);
   color:white;
   font-weight:bold;
-}
-
-canvas {
-  width:100%;
-  height:300px;
-  border-radius:12px;
-  margin-top:10px;
-  background:black;
-}
-
-.archive {
-  margin-top:10px;
 }
 
 .node {
@@ -60,84 +51,70 @@ canvas {
 
 <div class="container">
 
-<h1>🧬 Final Fantasy Lattice — ALTIMA</h1>
+<h2>🧬 Final Fantasy Lattice — ALTIMA</h2>
 
 <h3>🧠 Character Core</h3>
 <input id="charName" placeholder="Enter name"/>
 <button onclick="saveChar()">Save Character</button>
 <button onclick="loadChar()">Load Character</button>
 
-<h3>🌌 Infinite Lattice World</h3>
-<canvas id="world"></canvas>
+<h3>🌌 Cinematic Lattice</h3>
+<canvas id="gl"></canvas>
 
 <h3>📡 Lattice Archive</h3>
 <input id="nodeTitle" placeholder="Node title"/>
-<textarea id="nodeContent" placeholder="Node memory"></textarea>
+<textarea id="nodeContent"></textarea>
 <button onclick="submitNode()">Submit Node</button>
 
 <div id="archive"></div>
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
 <script>
-// =====================
-// STATE
-// =====================
+// ================= STATE =================
 let state = {
   x:0,
   y:0,
-  char:null,
+  char: JSON.parse(localStorage.getItem("char") || "null"),
   archive: JSON.parse(localStorage.getItem("archive") || "[]")
 };
 
-// =====================
-// CHARACTER
-// =====================
-function saveChar() {
-  const name = document.getElementById("charName").value;
-  state.char = { name };
+// ================= CHARACTER =================
+function saveChar(){
+  const name = charName.value;
+  state.char = {name};
   localStorage.setItem("char", JSON.stringify(state.char));
   flash("Saved " + name);
 }
 
-function loadChar() {
+function loadChar(){
   const data = localStorage.getItem("char");
-  if (!data) return flash("No save");
+  if(!data) return flash("No save");
   state.char = JSON.parse(data);
-  document.getElementById("charName").value = state.char.name;
+  charName.value = state.char.name;
   flash("Loaded " + state.char.name);
 }
 
-// =====================
-// ARCHIVE
-// =====================
-function submitNode() {
-  const title = document.getElementById("nodeTitle").value;
-  const content = document.getElementById("nodeContent").value;
+// ================= ARCHIVE =================
+function submitNode(){
+  const title = nodeTitle.value;
+  const content = nodeContent.value;
 
-  if (!title || !content) return flash("Incomplete");
+  if(!title || !content) return flash("Incomplete");
 
-  const node = {
-    title,
-    content,
-    x:state.x,
-    y:state.y,
-    time:new Date().toLocaleString()
-  };
-
+  const node = {title,content,x:state.x,y:state.y};
   state.archive.push(node);
   localStorage.setItem("archive", JSON.stringify(state.archive));
 
   renderArchive();
-  flash("Node stored");
-
   nodeTitle.value="";
   nodeContent.value="";
 }
 
-function renderArchive() {
-  const el = document.getElementById("archive");
-  el.innerHTML = state.archive.slice(-10).reverse().map(n=>`
+function renderArchive(){
+  archive.innerHTML = state.archive.slice(-8).reverse().map(n=>`
     <div class="node">
       <b>${n.title}</b><br/>
       (${n.x}, ${n.y})<br/>
@@ -146,38 +123,57 @@ function renderArchive() {
   `).join("");
 }
 
-// =====================
-// WORLD ENGINE
-// =====================
-const canvas = document.getElementById("world");
-const ctx = canvas.getContext("2d");
+// ================= WEBGL =================
+const canvas = document.getElementById("gl");
+const renderer = new THREE.WebGLRenderer({canvas});
+renderer.setSize(window.innerWidth,300);
 
-canvas.width = 800;
-canvas.height = 300;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75,window.innerWidth/300,0.1,1000);
+camera.position.z = 5;
 
-function noise(x,y){
-  return Math.sin(x*12.9898 + y*78.233)*43758.5453 % 1;
-}
+const geometry = new THREE.PlaneGeometry(10,10,100,100);
 
-function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  for(let i=-20;i<20;i++){
-    for(let j=-10;j<10;j++){
-      let n = noise(state.x+i, state.y+j);
-      let hue = (n*360);
-
-      ctx.fillStyle = `hsl(${hue},70%,50%)`;
-      ctx.fillRect(400+i*20,150+j*20,18,18);
+const material = new THREE.ShaderMaterial({
+  uniforms: { time: { value: 0 } },
+  vertexShader: `
+    varying vec2 vUv;
+    uniform float time;
+    void main(){
+      vUv = uv;
+      vec3 pos = position;
+      pos.z += sin(pos.x*4.0 + time)*0.2;
+      pos.z += cos(pos.y*4.0 + time)*0.2;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos,1.0);
     }
-  }
+  `,
+  fragmentShader: `
+    varying vec2 vUv;
+    uniform float time;
+    void main(){
+      float c = sin(vUv.x*10.0 + time) * cos(vUv.y*10.0 + time);
+      vec3 col = vec3(0.5+0.5*sin(time + vUv.x*6.0),
+                      0.5+0.5*sin(time + vUv.y*6.0),
+                      0.7+0.3*sin(time));
+      gl_FragColor = vec4(col * c, 1.0);
+    }
+  `,
+  wireframe:false
+});
 
-  requestAnimationFrame(draw);
+const mesh = new THREE.Mesh(geometry, material);
+scene.add(mesh);
+
+// ================= LOOP =================
+function animate(){
+  requestAnimationFrame(animate);
+  material.uniforms.time.value += 0.02;
+  mesh.rotation.z += 0.001;
+  renderer.render(scene,camera);
 }
+animate();
 
-// =====================
-// MOVEMENT
-// =====================
+// ================= MOVEMENT =================
 document.addEventListener("keydown", e=>{
   if(e.key==="ArrowUp") state.y--;
   if(e.key==="ArrowDown") state.y++;
@@ -185,42 +181,29 @@ document.addEventListener("keydown", e=>{
   if(e.key==="ArrowRight") state.x++;
 });
 
-// =====================
-// TOUCH (iPhone)
-// =====================
-let touchStartX=0;
-let touchStartY=0;
-
+// ================= TOUCH =================
+let sx=0,sy=0;
 canvas.addEventListener("touchstart", e=>{
-  touchStartX=e.touches[0].clientX;
-  touchStartY=e.touches[0].clientY;
+  sx=e.touches[0].clientX;
+  sy=e.touches[0].clientY;
 });
-
 canvas.addEventListener("touchend", e=>{
-  let dx=e.changedTouches[0].clientX-touchStartX;
-  let dy=e.changedTouches[0].clientY-touchStartY;
-
+  let dx=e.changedTouches[0].clientX-sx;
+  let dy=e.changedTouches[0].clientY-sy;
   if(Math.abs(dx)>Math.abs(dy)){
-    if(dx>0) state.x++;
-    else state.x--;
+    dx>0?state.x++:state.x--;
   } else {
-    if(dy>0) state.y++;
-    else state.y--;
+    dy>0?state.y++:state.y--;
   }
 });
 
-// =====================
-// UI FEEDBACK
-// =====================
+// ================= UI =================
 function flash(msg){
   console.log(msg);
 }
 
-// =====================
 // INIT
-// =====================
 renderArchive();
-draw();
 </script>
 
 </body>
