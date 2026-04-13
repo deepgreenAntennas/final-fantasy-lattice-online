@@ -3,250 +3,249 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Final Fantasy Lattice — ALTIMA</title>
+<title>Final Fantasy Lattice: ALTIMA</title>
 
 <style>
 body {
-  margin:0;
-  font-family:-apple-system, sans-serif;
-  background:#020617;
-  color:#e2e8f0;
+  margin: 0;
+  overflow: hidden;
+  font-family: monospace;
+  background: black;
+  color: white;
 }
 
-.container {
-  padding:16px;
-}
-
-canvas {
-  width:100%;
-  height:300px;
-  display:block;
-  border-radius:12px;
-}
-
-input, textarea, button {
-  width:100%;
-  margin:6px 0;
-  padding:10px;
-  border-radius:8px;
-  border:none;
+#ui {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+  background: rgba(0,0,0,0.6);
+  padding: 10px;
+  border-radius: 10px;
 }
 
 button {
-  background:linear-gradient(90deg,#6366f1,#8b5cf6);
-  color:white;
-  font-weight:bold;
+  margin: 2px;
 }
 
-.node {
-  background:#0f172a;
-  padding:8px;
-  border-radius:8px;
-  margin:6px 0;
+#log {
+  height: 120px;
+  overflow-y: auto;
+  font-size: 12px;
 }
 </style>
 </head>
 
 <body>
 
-<div class="container">
+<div id="ui">
+  <div><b>ALTIMA LATTICE SYSTEM</b></div>
+  <div id="stats"></div>
 
-<h2>🧬 Final Fantasy Lattice — ALTIMA</h2>
+  <button onclick="attack()">Attack</button>
+  <button onclick="combo()">Combo</button>
+  <button onclick="heal()">Heal</button>
 
-<h3>🧠 Character Core</h3>
-<input id="charName" placeholder="Enter name"/>
-<button onclick="saveChar()">Save Character</button>
-<button onclick="loadChar()">Load Character</button>
+  <br><br>
+  <button onclick="saveGame()">Save</button>
+  <button onclick="loadGame()">Load</button>
 
-<h3>🌌 Cinematic Lattice</h3>
-<canvas id="gl"></canvas>
-
-<h3>📡 Lattice Archive</h3>
-<input id="nodeTitle" placeholder="Node title"/>
-<textarea id="nodeContent"></textarea>
-<button onclick="submitNode()">Submit Node</button>
-
-<div id="archive"></div>
-
+  <div id="log"></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 
 <script>
-// ================= STATE =================
-let state = {
-  x:0,
-  y:0,
-  char: JSON.parse(localStorage.getItem("char") || "null"),
-  archive: JSON.parse(localStorage.getItem("archive") || "[]")
+// ============================
+// PLAYER SYSTEM (Player.swift)
+// ============================
+let player = {
+  hp: 100,
+  maxHp: 100,
+  xp: 0,
+  level: 1,
+  strain: 0,
+  status: []
 };
 
-// ================= CHARACTER =================
-function saveChar(){
-  const name = charName.value;
-  state.char = {name};
-  localStorage.setItem("char", JSON.stringify(state.char));
-  flash("Saved " + name);
-}
+// ============================
+// ENEMY SYSTEM
+// ============================
+let enemy = {
+  hp: 50
+};
 
-function loadChar(){
-  const data = localStorage.getItem("char");
-  if(!data) return flash("No save");
-  state.char = JSON.parse(data);
-  charName.value = state.char.name;
-  flash("Loaded " + state.char.name);
-}
-
-// ================= ARCHIVE =================
-function submitNode(){
-  const title = nodeTitle.value;
-  const content = nodeContent.value;
-
-  if(!title || !content) return flash("Incomplete");
-
-  const node = {title,content,x:state.x,y:state.y};
-  state.archive.push(node);
-  localStorage.setItem("archive", JSON.stringify(state.archive));
-
-  renderArchive();
-  nodeTitle.value="";
-  nodeContent.value="";
-}
-
-function renderArchive(){
-  archive.innerHTML = state.archive.slice(-8).reverse().map(n=>`
-    <div class="node">
-      <b>${n.title}</b><br/>
-      (${n.x}, ${n.y})<br/>
-      ${n.content}
-    </div>
-  `).join("");
-}
-
-// ================= WEBGL =================
-const canvas = document.getElementById("gl");
-const renderer = new THREE.WebGLRenderer({canvas});
-renderer.setSize(window.innerWidth,300);
-
+// ============================
+// THREE.JS WORLD (PhysicsEngine)
+// ============================
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75,window.innerWidth/300,0.1,1000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer();
+
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Player cube
+const geometry = new THREE.BoxGeometry();
+const material = new THREE.MeshBasicMaterial({ color: 0xff0040 });
+const cube = new THREE.Mesh(geometry, material);
+scene.add(cube);
+
+// Enemy cube
+const enemyGeo = new THREE.BoxGeometry();
+const enemyMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc });
+const enemyCube = new THREE.Mesh(enemyGeo, enemyMat);
+enemyCube.position.x = 2;
+scene.add(enemyCube);
+
 camera.position.z = 5;
 
-const geometry = new THREE.PlaneGeometry(10,10,100,100);
-
-const material = new THREE.ShaderMaterial({
-  uniforms: { time: { value: 0 } },
-  vertexShader: `
-    varying vec2 vUv;
-    uniform float time;
-    void main(){
-      vUv = uv;
-      vec3 pos = position;
-      pos.z += sin(pos.x*4.0 + time)*0.2;
-      pos.z += cos(pos.y*4.0 + time)*0.2;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos,1.0);
-    }
-  `,
-  fragmentShader: `
-    varying vec2 vUv;
-    uniform float time;
-    void main(){
-      float c = sin(vUv.x*10.0 + time) * cos(vUv.y*10.0 + time);
-      vec3 col = vec3(0.5+0.5*sin(time + vUv.x*6.0),
-                      0.5+0.5*sin(time + vUv.y*6.0),
-                      0.7+0.3*sin(time));
-      gl_FragColor = vec4(col * c, 1.0);
-    }
-  `,
-  wireframe:false
-});
-
-const mesh = new THREE.Mesh(geometry, material);
-scene.add(mesh);
-
-// ================= LOOP =================
-function animate(){
+// ============================
+// GAME LOOP
+// ============================
+function animate() {
   requestAnimationFrame(animate);
-  material.uniforms.time.value += 0.02;
-  mesh.rotation.z += 0.001;
-  renderer.render(scene,camera);
+
+  cube.rotation.x += 0.01;
+  cube.rotation.y += 0.01;
+
+  enemyCube.rotation.y -= 0.01;
+
+  renderer.render(scene, camera);
 }
 animate();
 
-// ================= MOVEMENT =================
-document.addEventListener("keydown", e=>{
-  if(e.key==="ArrowUp") state.y--;
-  if(e.key==="ArrowDown") state.y++;
-  if(e.key==="ArrowLeft") state.x--;
-  if(e.key==="ArrowRight") state.x++;
-});
-
-// ================= TOUCH =================
-let sx=0,sy=0;
-canvas.addEventListener("touchstart", e=>{
-  sx=e.touches[0].clientX;
-  sy=e.touches[0].clientY;
-});
-canvas.addEventListener("touchend", e=>{
-  let dx=e.changedTouches[0].clientX-sx;
-  let dy=e.changedTouches[0].clientY-sy;
-  if(Math.abs(dx)>Math.abs(dy)){
-    dx>0?state.x++:state.x--;
-  } else {
-    dy>0?state.y++:state.y--;
-  }
-});
-
-// ================= UI =================
-function flash(msg){
-  console.log(msg);
+// ============================
+// UI UPDATE
+// ============================
+function updateUI() {
+  document.getElementById("stats").innerHTML =
+    `HP: ${player.hp}/${player.maxHp}<br>
+     XP: ${player.xp}<br>
+     LVL: ${player.level}<br>
+     STRAIN: ${player.strain}`;
 }
 
+// ============================
+// LOG SYSTEM
+// ============================
+function log(msg) {
+  let logBox = document.getElementById("log");
+  logBox.innerHTML += msg + "<br>";
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+// ============================
+// COMBAT SYSTEM (skill_combos)
+// ============================
+function attack() {
+  let dmg = Math.floor(Math.random()*10)+5;
+  enemy.hp -= dmg;
+  player.strain += 2;
+
+  log("You attack for " + dmg);
+
+  if (enemy.hp <= 0) {
+    reward();
+  }
+  updateUI();
+}
+
+function combo() {
+  let dmg = Math.floor(Math.random()*20)+10;
+  enemy.hp -= dmg;
+  player.strain += 5;
+
+  log("COMBO STRIKE! " + dmg);
+
+  if (Math.random() > 0.7) {
+    applyStatus("burn");
+  }
+
+  if (enemy.hp <= 0) {
+    reward();
+  }
+  updateUI();
+}
+
+// ============================
+// STATUS EFFECT SYSTEM
+// ============================
+function applyStatus(type) {
+  player.status.push(type);
+  log("Status applied: " + type);
+}
+
+// ============================
+// HEAL SYSTEM
+// ============================
+function heal() {
+  let amount = 10;
+  player.hp = Math.min(player.maxHp, player.hp + amount);
+  player.strain += 1;
+  log("Healed " + amount);
+  updateUI();
+}
+
+// ============================
+// REWARD SYSTEM
+// ============================
+function reward() {
+  let xpGain = 20;
+  player.xp += xpGain;
+  log("Enemy defeated! +XP");
+
+  if (player.xp >= 100) {
+    player.level++;
+    player.xp = 0;
+    player.maxHp += 20;
+    player.hp = player.maxHp;
+    log("LEVEL UP!");
+  }
+
+  enemy.hp = 50;
+}
+
+// ============================
+// ALTIMA STRAIN SYSTEM
+// ============================
+setInterval(() => {
+  if (player.strain > 20) {
+    player.hp -= 5;
+    log("⚠ STRAIN DAMAGE!");
+  }
+
+  if (player.strain > 40) {
+    log("⚠ REALITY DESTABILIZING...");
+    cube.scale.x = Math.random()+0.5;
+    cube.scale.y = Math.random()+0.5;
+  }
+
+  updateUI();
+}, 2000);
+
+// ============================
+// SAVE / LOAD SYSTEM
+// ============================
+function saveGame() {
+  localStorage.setItem("latticeSave", JSON.stringify(player));
+  log("Game Saved.");
+}
+
+function loadGame() {
+  let save = localStorage.getItem("latticeSave");
+  if (save) {
+    player = JSON.parse(save);
+    log("Game Loaded.");
+    updateUI();
+  }
+}
+
+// ============================
 // INIT
-renderArchive();
+// ============================
+updateUI();
 </script>
 
 </body>
 </html>
-<script>
-function saveAndGo() {
-  const name = document.querySelector("#charName")?.value || "Altima";
-  localStorage.setItem("char", JSON.stringify({ name }));
-
-  // go to world
-  window.location.href = "world.html";
-}
-
-function loadAndGo() {
-  const data = localStorage.getItem("char");
-  if (!data) {
-    alert("No character saved");
-    return;
-  }
-
-  window.location.href = "world.html";
-}
-
-function submitAndGo() {
-  const title = document.querySelector("#nodeTitle")?.value;
-  const content = document.querySelector("#nodeContent")?.value;
-
-  if (!title || !content) {
-    alert("Missing node");
-    return;
-  }
-
-  const archive = JSON.parse(localStorage.getItem("archive") || "[]");
-
-  archive.push({
-    title,
-    content,
-    time: Date.now()
-  });
-
-  localStorage.setItem("archive", JSON.stringify(archive));
-
-  // go to archive page
-  window.location.href = "archive.html";
-}
-</script>
